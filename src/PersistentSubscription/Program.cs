@@ -17,7 +17,8 @@ namespace PersistentSubscription
      * program and only one instance will receive the event.
      * 
      */
-    class Program
+
+    internal class Program
     {
         private static void Main()
         {
@@ -33,6 +34,7 @@ namespace PersistentSubscription
         private const string GROUP = "a_test_group";
         private const int DEFAULTPORT = 1113;
         private static readonly UserCredentials User = new UserCredentials("admin", "changeit");
+        private EventStorePersistentSubscriptionBase _subscription;
 
         public void Start()
         {
@@ -43,17 +45,37 @@ namespace PersistentSubscription
             {
                 _conn.ConnectAsync().Wait();
 
-                var bufferSize = 10;
-                var autoAck = true;
-
                 CreateSubscription();
-
-                _conn.ConnectToPersistentSubscription(STREAM, GROUP, EventAppeared, SubscriptionDropped, User,
-                    bufferSize, autoAck);
+                ConnectToSubscription();
 
                 Console.WriteLine("waiting for events. press enter to exit");
                 Console.ReadLine();
             }
+        }
+
+
+        private void ConnectToSubscription()
+        {
+            var bufferSize = 10;
+            var autoAck = true;
+
+            _subscription = _conn.ConnectToPersistentSubscription(STREAM, GROUP, EventAppeared, SubscriptionDropped,
+                User, bufferSize, autoAck);
+        }
+
+        private void SubscriptionDropped(EventStorePersistentSubscriptionBase eventStorePersistentSubscriptionBase,
+            SubscriptionDropReason subscriptionDropReason, Exception ex)
+        {
+            ConnectToSubscription();
+        }
+
+        private static void EventAppeared(EventStorePersistentSubscriptionBase eventStorePersistentSubscriptionBase,
+            ResolvedEvent resolvedEvent)
+        {
+           ;
+            var data = Encoding.ASCII.GetString(resolvedEvent.Event.Data);
+            Console.WriteLine("Received: " + resolvedEvent.Event.EventStreamId + ":" + resolvedEvent.Event.EventNumber);
+            Console.WriteLine(data);
         }
 
         /*
@@ -61,6 +83,7 @@ namespace PersistentSubscription
         * Instead it is normally done as a step during an install or as an admin task when setting 
         * things up. You should assume the subscription exists in your code.
         */
+
         private void CreateSubscription()
         {
             PersistentSubscriptionSettings settings = PersistentSubscriptionSettings.Create()
@@ -79,21 +102,6 @@ namespace PersistentSubscription
                     throw;
                 }
             }
-        }
-
-        // If the subscription is dropped reconnect.
-        private void SubscriptionDropped(EventStorePersistentSubscriptionBase eventStorePersistentSubscriptionBase,
-            SubscriptionDropReason subscriptionDropReason, Exception ex)
-        {
-            _conn.ConnectAsync().Wait();
-        }
-
-        private static void EventAppeared(EventStorePersistentSubscriptionBase eventStorePersistentSubscriptionBase,
-            ResolvedEvent resolvedEvent)
-        {
-            var data = Encoding.ASCII.GetString(resolvedEvent.Event.Data);
-            Console.WriteLine("Received: " + resolvedEvent.Event.EventStreamId + ":" + resolvedEvent.Event.EventNumber);
-            Console.WriteLine(data);
         }
     }
 }
